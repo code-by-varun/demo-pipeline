@@ -3,7 +3,7 @@ name: "Interactive Parameter Pipeline with HTML Publish"
 on:
   push:
     branches:
-      - main  # change to your branch
+      - main
 
 permissions:
   contents: write
@@ -18,8 +18,12 @@ jobs:
   second-stage:
     runs-on: ubuntu-latest
     needs: first-stage
-    permissions:
-      contents: write
+    outputs:
+      param1: ${{ steps.interactive-inputs.outputs.param1 }}
+      param2: ${{ steps.interactive-inputs.outputs.param2 }}
+      param3: ${{ steps.interactive-inputs.outputs.param3 }}
+      param4: ${{ steps.interactive-inputs.outputs.param4 }}
+      param5: ${{ steps.interactive-inputs.outputs.param5 }}
     steps:
       - name: Stage 2 - Ask for parameters interactively
         id: interactive-inputs
@@ -62,25 +66,17 @@ jobs:
     runs-on: ubuntu-latest
     needs: second-stage
     steps:
-      - name: Stage 3 - Print parameters
-        run: |
-          echo "You entered:"
-          echo "Parameter 1: ${{ steps.interactive-inputs.outputs.param1 }}"
-          echo "Parameter 2: ${{ steps.interactive-inputs.outputs.param2 }}"
-          echo "Parameter 3: ${{ steps.interactive-inputs.outputs.param3 }}"
-          echo "Parameter 4: ${{ steps.interactive-inputs.outputs.param4 }}"
-          echo "Parameter 5: ${{ steps.interactive-inputs.outputs.param5 }}"
-
       - name: Create sample HTML report
         run: |
           mkdir public
           echo "<html><body><h1>Pipeline Parameters Report</h1>
-          <p>Parameter 1: ${{ steps.interactive-inputs.outputs.param1 }}</p>
-          <p>Parameter 2: ${{ steps.interactive-inputs.outputs.param2 }}</p>
-          <p>Parameter 3: ${{ steps.interactive-inputs.outputs.param3 }}</p>
-          <p>Parameter 4: ${{ steps.interactive-inputs.outputs.param4 }}</p>
-          <p>Parameter 5: ${{ steps.interactive-inputs.outputs.param5 }}</p>
+          <p>Parameter 1: ${{ needs.second-stage.outputs.param1 }}</p>
+          <p>Parameter 2: ${{ needs.second-stage.outputs.param2 }}</p>
+          <p>Parameter 3: ${{ needs.second-stage.outputs.param3 }}</p>
+          <p>Parameter 4: ${{ needs.second-stage.outputs.param4 }}</p>
+          <p>Parameter 5: ${{ needs.second-stage.outputs.param5 }}</p>
           </body></html>" > public/index.html
+          ls -l public
 
       - name: Publish HTML to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
@@ -91,5 +87,5 @@ jobs:
 
       - name: Show Report URL
         run: |
-          echo "Your report is available at:"
+          echo "Your report will be available shortly at:"
           echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
