@@ -1,9 +1,9 @@
-name: "Interactive Parameter Pipeline with HTML Publish"
+name: "Push-Triggered HTML Pipeline Report with Stages"
 
 on:
   push:
     branches:
-      - main
+      - main  # change if needed
 
 permissions:
   contents: write
@@ -24,6 +24,8 @@ jobs:
       param3: ${{ steps.interactive-inputs.outputs.param3 }}
       param4: ${{ steps.interactive-inputs.outputs.param4 }}
       param5: ${{ steps.interactive-inputs.outputs.param5 }}
+    permissions:
+      contents: write
     steps:
       - name: Stage 2 - Ask for parameters interactively
         id: interactive-inputs
@@ -66,63 +68,165 @@ jobs:
     runs-on: ubuntu-latest
     needs: second-stage
     steps:
-      - name: Checkout repo
+      - name: Stage 3 - Print parameters
+        run: |
+          echo "You entered:"
+          echo "Parameter 1: ${{ needs.second-stage.outputs.param1 }}"
+          echo "Parameter 2: ${{ needs.second-stage.outputs.param2 }}"
+          echo "Parameter 3: ${{ needs.second-stage.outputs.param3 }}"
+          echo "Parameter 4: ${{ needs.second-stage.outputs.param4 }}"
+          echo "Parameter 5: ${{ needs.second-stage.outputs.param5 }}"
+
+  publish-report:
+    runs-on: ubuntu-latest
+    needs: third-stage
+    steps:
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          
+      - name: Create directories
+        run: |
+          mkdir -p history
+          mkdir -p reports
 
       - name: Generate HTML reports
         run: |
-          mkdir -p public/history
-
-          # Unique file name for this run
-          RUN_ID=${{ github.run_number }}
-          HISTORY_FILE="history/${RUN_ID}.html"
-
-          # Create HTML for this run
-          cat > public/${HISTORY_FILE} <<EOF
-          <html><body><h1>Pipeline Parameters Report - Run #${RUN_ID}</h1>
-          <p>Parameter 1: ${{ needs.second-stage.outputs.param1 }}</p>
-          <p>Parameter 2: ${{ needs.second-stage.outputs.param2 }}</p>
-          <p>Parameter 3: ${{ needs.second-stage.outputs.param3 }}</p>
-          <p>Parameter 4: ${{ needs.second-stage.outputs.param4 }}</p>
-          <p>Parameter 5: ${{ needs.second-stage.outputs.param5 }}</p>
-          <p><a href="../index.html">Back to Latest</a></p>
-          </body></html>
+          # Current timestamp
+          TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
+          
+          # Latest report (always overwrites)
+          cat <<EOF > reports/latest.html
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>Latest Parameters Report</title>
+              <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+              <meta http-equiv="Pragma" content="no-cache">
+              <meta http-equiv="Expires" content="0">
+              <style>
+                  body { font-family: Arial, sans-serif; margin: 20px; }
+                  h1 { color: #333; }
+                  .parameter { margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 5px; }
+                  .timestamp { color: #666; font-size: 0.9em; }
+                  a { color: #0366d6; text-decoration: none; }
+                  a:hover { text-decoration: underline; }
+              </style>
+          </head>
+          <body>
+              <h1>Latest Parameters Report</h1>
+              <p class="timestamp">Generated on: $TIMESTAMP (Run #${{ github.run_number }})</p>
+              
+              <div class="parameter">
+                  <strong>Parameter 1:</strong> ${{ needs.second-stage.outputs.param1 }}
+              </div>
+              <div class="parameter">
+                  <strong>Parameter 2:</strong> ${{ needs.second-stage.outputs.param2 }}
+              </div>
+              <div class="parameter">
+                  <strong>Parameter 3:</strong> ${{ needs.second-stage.outputs.param3 }}
+              </div>
+              <div class="parameter">
+                  <strong>Parameter 4:</strong> ${{ needs.second-stage.outputs.param4 }}
+              </div>
+              <div class="parameter">
+                  <strong>Parameter 5:</strong> ${{ needs.second-stage.outputs.param5 }}
+              </div>
+              
+              <p><a href="../history/${{ github.run_number }}.html">View this run's details</a></p>
+              <p><a href="../history/index.html">View all historical runs</a></p>
+          </body>
+          </html>
           EOF
 
-          # Create "latest" HTML (overwrites every run)
-          cat > public/index.html <<EOF
-          <html><body><h1>Latest Pipeline Parameters</h1>
-          <p>Parameter 1: ${{ needs.second-stage.outputs.param1 }}</p>
-          <p>Parameter 2: ${{ needs.second-stage.outputs.param2 }}</p>
-          <p>Parameter 3: ${{ needs.second-stage.outputs.param3 }}</p>
-          <p>Parameter 4: ${{ needs.second-stage.outputs.param4 }}</p>
-          <p>Parameter 5: ${{ needs.second-stage.outputs.param5 }}</p>
-          <p><a href="history/">View History</a></p>
-          </body></html>
+          # Individual run report
+          cat <<EOF > history/${{ github.run_number }}.html
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>Run #${{ github.run_number }} Report</title>
+              <style>
+                  body { font-family: Arial, sans-serif; margin: 20px; }
+                  h1 { color: #333; }
+                  .parameter { margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 5px; }
+                  .timestamp { color: #666; font-size: 0.9em; }
+                  a { color: #0366d6; text-decoration: none; }
+                  a:hover { text-decoration: underline; }
+              </style>
+          </head>
+          <body>
+              <h1>Parameters for Run #${{ github.run_number }}</h1>
+              <p class="timestamp">Generated on: $TIMESTAMP</p>
+              
+              <div class="parameter">
+                  <strong>Parameter 1:</strong> ${{ needs.second-stage.outputs.param1 }}
+              </div>
+              <div class="parameter">
+                  <strong>Parameter 2:</strong> ${{ needs.second-stage.outputs.param2 }}
+              </div>
+              <div class="parameter">
+                  <strong>Parameter 3:</strong> ${{ needs.second-stage.outputs.param3 }}
+              </div>
+              <div class="parameter">
+                  <strong>Parameter 4:</strong> ${{ needs.second-stage.outputs.param4 }}
+              </div>
+              <div class="parameter">
+                  <strong>Parameter 5:</strong> ${{ needs.second-stage.outputs.param5 }}
+              </div>
+              
+              <p><a href="../reports/latest.html">Back to latest report</a></p>
+              <p><a href="index.html">View all historical runs</a></p>
+          </body>
+          </html>
           EOF
 
           # Update history index
-          HISTORY_INDEX="public/history/index.html"
-          mkdir -p public/history
-          if [ ! -f "$HISTORY_INDEX" ]; then
-            echo "<html><body><h1>Pipeline Run History</h1><ul>" > "$HISTORY_INDEX"
-          fi
-          sed -i '$d' "$HISTORY_INDEX" || true
-          echo "<li><a href=\"${RUN_ID}.html\">Run #${RUN_ID}</a></li>" >> "$HISTORY_INDEX"
-          echo "</ul></body></html>" >> "$HISTORY_INDEX"
+          {
+            echo '<!DOCTYPE html>
+            <html>
+            <head>
+                <title>All Historical Runs</title>
+                <style>
+                    body { font-family: Arial, sans-serif; margin: 20px; }
+                    h1 { color: #333; }
+                    ul { list-style-type: none; padding: 0; }
+                    li { margin: 5px 0; padding: 8px; background: #f5f5f5; border-radius: 5px; }
+                    a { color: #0366d6; text-decoration: none; }
+                    a:hover { text-decoration: underline; }
+                </style>
+            </head>
+            <body>
+                <h1>All Historical Runs</h1>
+                <ul>'
+            
+            # List all historical runs in reverse chronological order
+            for file in $(ls -v history/*.html | grep -v index.html); do
+              run_number=$(basename "$file" .html)
+              echo "<li><a href=\"$run_number.html\">Run #$run_number</a></li>"
+            done | sort -Vr
+            
+            echo '</ul>
+                <p><a href="../reports/latest.html">Back to latest report</a></p>
+            </body>
+            </html>'
+          } > history/index.html
 
-      - name: Publish HTML to GitHub Pages
+      - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./public
+          publish_dir: .
           publish_branch: gh-pages
+          keep_files: true
 
       - name: Show Report URLs
         run: |
-          echo "Latest report:"
-          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
-          echo "This run's history entry:"
+          echo "Latest report URL (always shows most recent parameters):"
+          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/reports/latest.html?nocache=${{ github.run_id }}"
+          echo ""
+          echo "This run's detailed report:"
           echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/history/${{ github.run_number }}.html"
-          echo "History index:"
-          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/history/"
+          echo ""
+          echo "All historical runs:"
+          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/history/index.html"
