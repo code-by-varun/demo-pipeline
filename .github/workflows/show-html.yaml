@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - main
+      - main  # change to your default branch if needed
 
 permissions:
   contents: write
@@ -12,6 +12,7 @@ permissions:
 jobs:
   collect-inputs:
     runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
     outputs:
       param1: ${{ steps.interactive-inputs.outputs.param1 }}
       param2: ${{ steps.interactive-inputs.outputs.param2 }}
@@ -24,72 +25,82 @@ jobs:
         uses: boasihq/interactive-inputs@v2
         with:
           ngrok-authtoken: ${{ secrets.NGROK_AUTHTOKEN }}
-          notifier-slack-enabled: "false"
-          notifier-discord-enabled: "false"
           timeout: 300
           title: "Please provide 5 parameters"
           interactive: |
             fields:
               - label: param1
-                properties:
-                  display: Parameter 1
-                  type: text
-                  required: true
+                properties: { display: "Parameter 1", type: text, required: true }
               - label: param2
-                properties:
-                  display: Parameter 2
-                  type: text
-                  required: true
+                properties: { display: "Parameter 2", type: text, required: true }
               - label: param3
-                properties:
-                  display: Parameter 3
-                  type: text
-                  required: true
+                properties: { display: "Parameter 3", type: text, required: true }
               - label: param4
-                properties:
-                  display: Parameter 4
-                  type: text
-                  required: true
+                properties: { display: "Parameter 4", type: text, required: true }
               - label: param5
-                properties:
-                  display: Parameter 5
-                  type: text
-                  required: true
+                properties: { display: "Parameter 5", type: text, required: true }
 
   publish-report:
     runs-on: ubuntu-latest
-    needs: collect-inputs
+    needs: [collect-inputs]
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     steps:
-      - name: Download existing gh-pages branch
+      - name: Checkout gh-pages branch
         run: |
           git clone --branch gh-pages \
             https://github.com/${{ github.repository }} public || mkdir -p public
+          cd public
+          git pull || true
+          cd ..
+
+      - name: Set Parameters
+        id: set-params
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "param1=AutoRun" >> $GITHUB_OUTPUT
+            echo "param2=TriggeredOnPush" >> $GITHUB_OUTPUT
+            echo "param3=$(date)" >> $GITHUB_OUTPUT
+            echo "param4=GitCommit:${GITHUB_SHA}" >> $GITHUB_OUTPUT
+            echo "param5=Branch:${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+          else
+            echo "param1=${{ needs.collect-inputs.outputs.param1 }}" >> $GITHUB_OUTPUT
+            echo "param2=${{ needs.collect-inputs.outputs.param2 }}" >> $GITHUB_OUTPUT
+            echo "param3=${{ needs.collect-inputs.outputs.param3 }}" >> $GITHUB_OUTPUT
+            echo "param4=${{ needs.collect-inputs.outputs.param4 }}" >> $GITHUB_OUTPUT
+            echo "param5=${{ needs.collect-inputs.outputs.param5 }}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Create HTML reports (latest + history)
         run: |
           mkdir -p public/history
-          
-          # Latest page
+
+          # Create latest report with no-cache headers
           cat <<EOF > public/index.html
-          <html><body><h1>Pipeline Parameters Report (Latest)</h1>
-          <p>Parameter 1: ${{ needs.collect-inputs.outputs.param1 }}</p>
-          <p>Parameter 2: ${{ needs.collect-inputs.outputs.param2 }}</p>
-          <p>Parameter 3: ${{ needs.collect-inputs.outputs.param3 }}</p>
-          <p>Parameter 4: ${{ needs.collect-inputs.outputs.param4 }}</p>
-          <p>Parameter 5: ${{ needs.collect-inputs.outputs.param5 }}</p>
-          <p><a href="./history/${{ github.run_number }}.html">View history entry for this run</a></p>
+          <html><head>
+          <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+          <meta http-equiv="Pragma" content="no-cache" />
+          <meta http-equiv="Expires" content="0" />
+          </head><body>
+          <h1>Pipeline Parameters Report (Latest)</h1>
+          <p>Parameter 1: ${{ steps.set-params.outputs.param1 }}</p>
+          <p>Parameter 2: ${{ steps.set-params.outputs.param2 }}</p>
+          <p>Parameter 3: ${{ steps.set-params.outputs.param3 }}</p>
+          <p>Parameter 4: ${{ steps.set-params.outputs.param4 }}</p>
+          <p>Parameter 5: ${{ steps.set-params.outputs.param5 }}</p>
+          <p><a href="./history/${{ github.run_number }}.html">View this run's history</a></p>
           <p><a href="./history/index.html">View all history</a></p>
           </body></html>
           EOF
 
-          # History entry
+          # Create history entry
           cat <<EOF > public/history/${{ github.run_number }}.html
-          <html><body><h1>Pipeline Parameters Report (Run #${{ github.run_number }})</h1>
-          <p>Parameter 1: ${{ needs.collect-inputs.outputs.param1 }}</p>
-          <p>Parameter 2: ${{ needs.collect-inputs.outputs.param2 }}</p>
-          <p>Parameter 3: ${{ needs.collect-inputs.outputs.param3 }}</p>
-          <p>Parameter 4: ${{ needs.collect-inputs.outputs.param4 }}</p>
-          <p>Parameter 5: ${{ needs.collect-inputs.outputs.param5 }}</p>
+          <html><body>
+          <h1>Pipeline Parameters Report (Run #${{ github.run_number }})</h1>
+          <p>Parameter 1: ${{ steps.set-params.outputs.param1 }}</p>
+          <p>Parameter 2: ${{ steps.set-params.outputs.param2 }}</p>
+          <p>Parameter 3: ${{ steps.set-params.outputs.param3 }}</p>
+          <p>Parameter 4: ${{ steps.set-params.outputs.param4 }}</p>
+          <p>Parameter 5: ${{ steps.set-params.outputs.param5 }}</p>
           <p><a href="../index.html">Back to latest</a></p>
           </body></html>
           EOF
@@ -112,11 +123,12 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./public
           publish_branch: gh-pages
+          keep_files: true
 
       - name: Show Report URLs
         run: |
           echo "Live report URL (always latest):"
-          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/?t=${{ github.run_id }}"
+          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/?nocache=${{ github.run_id }}"
           echo "History URL for this run:"
           echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/history/${{ github.run_number }}.html"
           echo "History Index URL:"
