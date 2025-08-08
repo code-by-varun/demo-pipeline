@@ -2,6 +2,9 @@ name: "Interactive Parameter Pipeline with HTML Publish"
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: write
