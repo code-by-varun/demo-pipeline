@@ -1,41 +1,28 @@
-name: "Push-Triggered HTML Pipeline Report with Stages"
+name: "HTML Pipeline Report with Latest and History"
 
 on:
   push:
     branches:
-      - main  # change if needed
+      - main
 
 permissions:
   contents: write
 
 jobs:
-  first-stage:
+  generate-report:
     runs-on: ubuntu-latest
     steps:
-      - name: Stage 1 - Echo message
-        run: echo "Hello from Stage 1!"
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
 
-  second-stage:
-    runs-on: ubuntu-latest
-    needs: first-stage
-    outputs:
-      param1: ${{ steps.interactive-inputs.outputs.param1 }}
-      param2: ${{ steps.interactive-inputs.outputs.param2 }}
-      param3: ${{ steps.interactive-inputs.outputs.param3 }}
-      param4: ${{ steps.interactive-inputs.outputs.param4 }}
-      param5: ${{ steps.interactive-inputs.outputs.param5 }}
-    permissions:
-      contents: write
-    steps:
-      - name: Stage 2 - Ask for parameters interactively
+      - name: Get interactive inputs
         id: interactive-inputs
         uses: boasihq/interactive-inputs@v2
         with:
           ngrok-authtoken: ${{ secrets.NGROK_AUTHTOKEN }}
-          notifier-slack-enabled: "false"
-          notifier-discord-enabled: "false"
-          timeout: 300
-          title: "Please provide 5 parameters"
+          title: "Enter Report Parameters"
           interactive: |
             fields:
               - label: param1
@@ -64,152 +51,63 @@ jobs:
                   type: text
                   required: true
 
-  third-stage:
-    runs-on: ubuntu-latest
-    needs: second-stage
-    steps:
-      - name: Stage 3 - Print parameters
+      - name: Create report directories
         run: |
-          echo "You entered:"
-          echo "Parameter 1: ${{ needs.second-stage.outputs.param1 }}"
-          echo "Parameter 2: ${{ needs.second-stage.outputs.param2 }}"
-          echo "Parameter 3: ${{ needs.second-stage.outputs.param3 }}"
-          echo "Parameter 4: ${{ needs.second-stage.outputs.param4 }}"
-          echo "Parameter 5: ${{ needs.second-stage.outputs.param5 }}"
-
-  publish-report:
-    runs-on: ubuntu-latest
-    needs: third-stage
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: gh-pages
-          
-      - name: Create directories
-        run: |
-          mkdir -p history
           mkdir -p reports
+          mkdir -p history
 
-      - name: Generate HTML reports
+      - name: Generate latest report
         run: |
-          # Current timestamp
           TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
-          
-          # Latest report (always overwrites)
           cat <<EOF > reports/latest.html
           <!DOCTYPE html>
           <html>
           <head>
-              <title>Latest Parameters Report</title>
-              <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-              <meta http-equiv="Pragma" content="no-cache">
-              <meta http-equiv="Expires" content="0">
+              <title>Latest Report</title>
               <style>
                   body { font-family: Arial, sans-serif; margin: 20px; }
-                  h1 { color: #333; }
-                  .parameter { margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 5px; }
-                  .timestamp { color: #666; font-size: 0.9em; }
-                  a { color: #0366d6; text-decoration: none; }
-                  a:hover { text-decoration: underline; }
+                  .parameter { margin: 10px 0; padding: 10px; background: #f5f5f5; }
               </style>
           </head>
           <body>
-              <h1>Latest Parameters Report</h1>
-              <p class="timestamp">Generated on: $TIMESTAMP (Run #${{ github.run_number }})</p>
-              
-              <div class="parameter">
-                  <strong>Parameter 1:</strong> ${{ needs.second-stage.outputs.param1 }}
-              </div>
-              <div class="parameter">
-                  <strong>Parameter 2:</strong> ${{ needs.second-stage.outputs.param2 }}
-              </div>
-              <div class="parameter">
-                  <strong>Parameter 3:</strong> ${{ needs.second-stage.outputs.param3 }}
-              </div>
-              <div class="parameter">
-                  <strong>Parameter 4:</strong> ${{ needs.second-stage.outputs.param4 }}
-              </div>
-              <div class="parameter">
-                  <strong>Parameter 5:</strong> ${{ needs.second-stage.outputs.param5 }}
-              </div>
-              
-              <p><a href="../history/${{ github.run_number }}.html">View this run's details</a></p>
-              <p><a href="../history/index.html">View all historical runs</a></p>
+              <h1>Latest Report (Run #${{ github.run_number }})</h1>
+              <p>Generated: $TIMESTAMP</p>
+              <div class="parameter">Param1: ${{ steps.interactive-inputs.outputs.param1 }}</div>
+              <div class="parameter">Param2: ${{ steps.interactive-inputs.outputs.param2 }}</div>
+              <div class="parameter">Param3: ${{ steps.interactive-inputs.outputs.param3 }}</div>
+              <div class="parameter">Param4: ${{ steps.interactive-inputs.outputs.param4 }}</div>
+              <div class="parameter">Param5: ${{ steps.interactive-inputs.outputs.param5 }}</div>
+              <p><a href="../history/index.html">View History</a></p>
           </body>
           </html>
           EOF
 
-          # Individual run report
+      - name: Add to history
+        run: |
+          TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
           cat <<EOF > history/${{ github.run_number }}.html
           <!DOCTYPE html>
           <html>
-          <head>
-              <title>Run #${{ github.run_number }} Report</title>
-              <style>
-                  body { font-family: Arial, sans-serif; margin: 20px; }
-                  h1 { color: #333; }
-                  .parameter { margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 5px; }
-                  .timestamp { color: #666; font-size: 0.9em; }
-                  a { color: #0366d6; text-decoration: none; }
-                  a:hover { text-decoration: underline; }
-              </style>
-          </head>
           <body>
-              <h1>Parameters for Run #${{ github.run_number }}</h1>
-              <p class="timestamp">Generated on: $TIMESTAMP</p>
-              
-              <div class="parameter">
-                  <strong>Parameter 1:</strong> ${{ needs.second-stage.outputs.param1 }}
-              </div>
-              <div class="parameter">
-                  <strong>Parameter 2:</strong> ${{ needs.second-stage.outputs.param2 }}
-              </div>
-              <div class="parameter">
-                  <strong>Parameter 3:</strong> ${{ needs.second-stage.outputs.param3 }}
-              </div>
-              <div class="parameter">
-                  <strong>Parameter 4:</strong> ${{ needs.second-stage.outputs.param4 }}
-              </div>
-              <div class="parameter">
-                  <strong>Parameter 5:</strong> ${{ needs.second-stage.outputs.param5 }}
-              </div>
-              
-              <p><a href="../reports/latest.html">Back to latest report</a></p>
-              <p><a href="index.html">View all historical runs</a></p>
+              <h1>Run #${{ github.run_number }}</h1>
+              <p>Param1: ${{ steps.interactive-inputs.outputs.param1 }}</p>
+              <p>Param2: ${{ steps.interactive-inputs.outputs.param2 }}</p>
+              <p>Param3: ${{ steps.interactive-inputs.outputs.param3 }}</p>
+              <p>Param4: ${{ steps.interactive-inputs.outputs.param4 }}</p>
+              <p>Param5: ${{ steps.interactive-inputs.outputs.param5 }}</p>
+              <p><a href="../reports/latest.html">Back to Latest</a></p>
           </body>
           </html>
           EOF
 
           # Update history index
           {
-            echo '<!DOCTYPE html>
-            <html>
-            <head>
-                <title>All Historical Runs</title>
-                <style>
-                    body { font-family: Arial, sans-serif; margin: 20px; }
-                    h1 { color: #333; }
-                    ul { list-style-type: none; padding: 0; }
-                    li { margin: 5px 0; padding: 8px; background: #f5f5f5; border-radius: 5px; }
-                    a { color: #0366d6; text-decoration: none; }
-                    a:hover { text-decoration: underline; }
-                </style>
-            </head>
-            <body>
-                <h1>All Historical Runs</h1>
-                <ul>'
-            
-            # List all historical runs in reverse chronological order
-            for file in $(ls -v history/*.html | grep -v index.html); do
-              run_number=$(basename "$file" .html)
-              echo "<li><a href=\"$run_number.html\">Run #$run_number</a></li>"
-            done | sort -Vr
-            
-            echo '</ul>
-                <p><a href="../reports/latest.html">Back to latest report</a></p>
-            </body>
-            </html>'
+            echo '<!DOCTYPE html><html><body><h1>Report History</h1><ul>'
+            ls -v history/*.html | grep -v index.html | sort -Vr | while read file; do
+              run_num=$(basename "$file" .html)
+              echo "<li><a href=\"$run_num.html\">Run #$run_num</a></li>"
+            done
+            echo '</ul><p><a href="../reports/latest.html">Back to Latest</a></p></body></html>'
           } > history/index.html
 
       - name: Deploy to GitHub Pages
@@ -220,13 +118,10 @@ jobs:
           publish_branch: gh-pages
           keep_files: true
 
-      - name: Show Report URLs
+      - name: Show URLs
         run: |
-          echo "Latest report URL (always shows most recent parameters):"
-          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/reports/latest.html?nocache=${{ github.run_id }}"
+          echo "Latest Report URL:"
+          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/reports/latest.html"
           echo ""
-          echo "This run's detailed report:"
-          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/history/${{ github.run_number }}.html"
-          echo ""
-          echo "All historical runs:"
+          echo "History URL:"
           echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/history/index.html"
