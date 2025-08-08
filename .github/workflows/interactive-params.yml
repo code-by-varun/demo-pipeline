@@ -21,6 +21,7 @@ jobs:
         uses: boasihq/interactive-inputs@v2
         with:
           ngrok-authtoken: ${{ secrets.NGROK_AUTHTOKEN }}
+          ngrok-args: "--request-header-add=ngrok-skip-browser-warning:true"
           notifier-slack-enabled: "false"
           notifier-discord-enabled: "false"
           timeout: 300
