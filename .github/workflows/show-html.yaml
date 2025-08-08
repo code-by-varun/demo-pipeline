@@ -1,6 +1,7 @@
 name: "Interactive Parameter Pipeline with HTML Publish"
 
 on:
+  workflow_dispatch: # easier for testing
   push:
     branches:
       - main
@@ -59,43 +60,26 @@ jobs:
     runs-on: ubuntu-latest
     needs: second-stage
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Create HTML report with cache-busting
+      - name: Create HTML reports (latest + history)
         run: |
-          mkdir -p public
-          timestamp=$(date +%s)
-          run_id="${{ github.run_number }}"
+          mkdir -p public/history
+          
+          # HTML content
           cat <<EOF > public/index.html
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="UTF-8">
-            <title>Pipeline Parameters Report</title>
-            <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-            <meta http-equiv="Pragma" content="no-cache" />
-            <meta http-equiv="Expires" content="0" />
-          </head>
-          <body>
-            <h1>Pipeline Parameters Report</h1>
-            <ul>
-              <li>Parameter 1: ${{ needs.second-stage.outputs.param1 }}</li>
-              <li>Parameter 2: ${{ needs.second-stage.outputs.param2 }}</li>
-              <li>Parameter 3: ${{ needs.second-stage.outputs.param3 }}</li>
-              <li>Parameter 4: ${{ needs.second-stage.outputs.param4 }}</li>
-              <li>Parameter 5: ${{ needs.second-stage.outputs.param5 }}</li>
-            </ul>
-            <p>Run ID: ${run_id}</p>
-            <p>Generated at: $(date)</p>
-            <p>Cache-buster: ${timestamp}</p>
-            <p><a href="./history/${run_id}.html">View this run in history</a></p>
-          </body>
-          </html>
+          <html><body><h1>Pipeline Parameters Report (Latest)</h1>
+          <p>Parameter 1: ${{ needs.second-stage.outputs.param1 }}</p>
+          <p>Parameter 2: ${{ needs.second-stage.outputs.param2 }}</p>
+          <p>Parameter 3: ${{ needs.second-stage.outputs.param3 }}</p>
+          <p>Parameter 4: ${{ needs.second-stage.outputs.param4 }}</p>
+          <p>Parameter 5: ${{ needs.second-stage.outputs.param5 }}</p>
+          <p><a href="./history/${{ github.run_number }}.html">View history entry for this run</a></p>
+          </body></html>
           EOF
 
-          mkdir -p public/history
-          cp public/index.html public/history/${run_id}.html
+          # Save history file
+          cp public/index.html "public/history/${{ github.run_number }}.html"
+
+          ls -R public
 
       - name: Publish HTML to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
@@ -103,11 +87,10 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./public
           publish_branch: gh-pages
-          force_orphan: true
 
-      - name: Show Report URL
+      - name: Show Report URLs
         run: |
           echo "Live report URL (always latest):"
-          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/?v=$(date +%s)"
+          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/?t=${{ github.run_id }}"
           echo "History URL for this run:"
           echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/history/${{ github.run_number }}.html"
