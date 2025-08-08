@@ -1,0 +1,95 @@
+name: "Interactive Parameter Pipeline with HTML Publish"
+
+on:
+  push:
+    branches:
+      - main  # change to your branch
+
+permissions:
+  contents: write
+
+jobs:
+  first-stage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Stage 1 - Echo message
+        run: echo "Hello from Stage 1!"
+
+  second-stage:
+    runs-on: ubuntu-latest
+    needs: first-stage
+    permissions:
+      contents: write
+    steps:
+      - name: Stage 2 - Ask for parameters interactively
+        id: interactive-inputs
+        uses: boasihq/interactive-inputs@v2
+        with:
+          ngrok-authtoken: ${{ secrets.NGROK_AUTHTOKEN }}
+          notifier-slack-enabled: "false"
+          notifier-discord-enabled: "false"
+          timeout: 300
+          title: "Please provide 5 parameters"
+          interactive: |
+            fields:
+              - label: param1
+                properties:
+                  display: Parameter 1
+                  type: text
+                  required: true
+              - label: param2
+                properties:
+                  display: Parameter 2
+                  type: text
+                  required: true
+              - label: param3
+                properties:
+                  display: Parameter 3
+                  type: text
+                  required: true
+              - label: param4
+                properties:
+                  display: Parameter 4
+                  type: text
+                  required: true
+              - label: param5
+                properties:
+                  display: Parameter 5
+                  type: text
+                  required: true
+
+  third-stage:
+    runs-on: ubuntu-latest
+    needs: second-stage
+    steps:
+      - name: Stage 3 - Print parameters
+        run: |
+          echo "You entered:"
+          echo "Parameter 1: ${{ steps.interactive-inputs.outputs.param1 }}"
+          echo "Parameter 2: ${{ steps.interactive-inputs.outputs.param2 }}"
+          echo "Parameter 3: ${{ steps.interactive-inputs.outputs.param3 }}"
+          echo "Parameter 4: ${{ steps.interactive-inputs.outputs.param4 }}"
+          echo "Parameter 5: ${{ steps.interactive-inputs.outputs.param5 }}"
+
+      - name: Create sample HTML report
+        run: |
+          mkdir public
+          echo "<html><body><h1>Pipeline Parameters Report</h1>
+          <p>Parameter 1: ${{ steps.interactive-inputs.outputs.param1 }}</p>
+          <p>Parameter 2: ${{ steps.interactive-inputs.outputs.param2 }}</p>
+          <p>Parameter 3: ${{ steps.interactive-inputs.outputs.param3 }}</p>
+          <p>Parameter 4: ${{ steps.interactive-inputs.outputs.param4 }}</p>
+          <p>Parameter 5: ${{ steps.interactive-inputs.outputs.param5 }}</p>
+          </body></html>" > public/index.html
+
+      - name: Publish HTML to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          publish_branch: gh-pages
+
+      - name: Show Report URL
+        run: |
+          echo "Your report is available at:"
+          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
