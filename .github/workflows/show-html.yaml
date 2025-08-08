@@ -1,49 +1,16 @@
-name: "Interactive Parameter Pipeline with HTML Publish"
+name: "Push-Triggered HTML Pipeline Report"
 
 on:
-  workflow_dispatch:
   push:
     branches:
-      - main  # change to your default branch if needed
+      - main  # change if your default branch is different
 
 permissions:
   contents: write
 
 jobs:
-  collect-inputs:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
-    outputs:
-      param1: ${{ steps.interactive-inputs.outputs.param1 }}
-      param2: ${{ steps.interactive-inputs.outputs.param2 }}
-      param3: ${{ steps.interactive-inputs.outputs.param3 }}
-      param4: ${{ steps.interactive-inputs.outputs.param4 }}
-      param5: ${{ steps.interactive-inputs.outputs.param5 }}
-    steps:
-      - name: Ask for parameters interactively
-        id: interactive-inputs
-        uses: boasihq/interactive-inputs@v2
-        with:
-          ngrok-authtoken: ${{ secrets.NGROK_AUTHTOKEN }}
-          timeout: 300
-          title: "Please provide 5 parameters"
-          interactive: |
-            fields:
-              - label: param1
-                properties: { display: "Parameter 1", type: text, required: true }
-              - label: param2
-                properties: { display: "Parameter 2", type: text, required: true }
-              - label: param3
-                properties: { display: "Parameter 3", type: text, required: true }
-              - label: param4
-                properties: { display: "Parameter 4", type: text, required: true }
-              - label: param5
-                properties: { display: "Parameter 5", type: text, required: true }
-
   publish-report:
     runs-on: ubuntu-latest
-    needs: [collect-inputs]
-    if: github.event_name == 'workflow_dispatch' || github.event_name == 'push'
     steps:
       - name: Checkout gh-pages branch
         run: |
@@ -53,22 +20,14 @@ jobs:
           git pull || true
           cd ..
 
-      - name: Set Parameters
+      - name: Set Parameters (Auto on Push)
         id: set-params
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            echo "param1=AutoRun" >> $GITHUB_OUTPUT
-            echo "param2=TriggeredOnPush" >> $GITHUB_OUTPUT
-            echo "param3=$(date)" >> $GITHUB_OUTPUT
-            echo "param4=GitCommit:${GITHUB_SHA}" >> $GITHUB_OUTPUT
-            echo "param5=Branch:${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
-          else
-            echo "param1=${{ needs.collect-inputs.outputs.param1 }}" >> $GITHUB_OUTPUT
-            echo "param2=${{ needs.collect-inputs.outputs.param2 }}" >> $GITHUB_OUTPUT
-            echo "param3=${{ needs.collect-inputs.outputs.param3 }}" >> $GITHUB_OUTPUT
-            echo "param4=${{ needs.collect-inputs.outputs.param4 }}" >> $GITHUB_OUTPUT
-            echo "param5=${{ needs.collect-inputs.outputs.param5 }}" >> $GITHUB_OUTPUT
-          fi
+          echo "param1=AutoRun" >> $GITHUB_OUTPUT
+          echo "param2=TriggeredOnPush" >> $GITHUB_OUTPUT
+          echo "param3=$(date)" >> $GITHUB_OUTPUT
+          echo "param4=GitCommit:${GITHUB_SHA}" >> $GITHUB_OUTPUT
+          echo "param5=Branch:${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
 
       - name: Create HTML reports (latest + history)
         run: |
