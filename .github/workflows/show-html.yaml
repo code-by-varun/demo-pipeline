@@ -1,9 +1,9 @@
-name: "Push-Triggered HTML Pipeline Report with Stages"
+name: "Interactive Parameter Pipeline with HTML Publish"
 
 on:
   push:
     branches:
-      - main  # change if needed
+      - main
 
 permissions:
   contents: write
@@ -24,8 +24,6 @@ jobs:
       param3: ${{ steps.interactive-inputs.outputs.param3 }}
       param4: ${{ steps.interactive-inputs.outputs.param4 }}
       param5: ${{ steps.interactive-inputs.outputs.param5 }}
-    permissions:
-      contents: write
     steps:
       - name: Stage 2 - Ask for parameters interactively
         id: interactive-inputs
@@ -68,73 +66,50 @@ jobs:
     runs-on: ubuntu-latest
     needs: second-stage
     steps:
-      - name: Stage 3 - Print parameters
-        run: |
-          echo "You entered:"
-          echo "Parameter 1: ${{ needs.second-stage.outputs.param1 }}"
-          echo "Parameter 2: ${{ needs.second-stage.outputs.param2 }}"
-          echo "Parameter 3: ${{ needs.second-stage.outputs.param3 }}"
-          echo "Parameter 4: ${{ needs.second-stage.outputs.param4 }}"
-          echo "Parameter 5: ${{ needs.second-stage.outputs.param5 }}"
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-  publish-report:
-    runs-on: ubuntu-latest
-    needs: third-stage
-    steps:
-      - name: Checkout gh-pages branch
-        run: |
-          git clone --branch gh-pages \
-            https://github.com/${{ github.repository }} public || mkdir -p public
-          cd public
-          git pull || true
-          cd ..
-
-      - name: Create HTML reports (latest + history)
+      - name: Generate HTML reports
         run: |
           mkdir -p public/history
 
-          # Latest report
-          cat <<EOF > public/index.html
-          <html><head>
-          <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-          <meta http-equiv="Pragma" content="no-cache" />
-          <meta http-equiv="Expires" content="0" />
-          </head><body>
-          <h1>Pipeline Parameters Report (Latest)</h1>
+          # Unique file name for this run
+          RUN_ID=${{ github.run_number }}
+          HISTORY_FILE="history/${RUN_ID}.html"
+
+          # Create HTML for this run
+          cat > public/${HISTORY_FILE} <<EOF
+          <html><body><h1>Pipeline Parameters Report - Run #${RUN_ID}</h1>
           <p>Parameter 1: ${{ needs.second-stage.outputs.param1 }}</p>
           <p>Parameter 2: ${{ needs.second-stage.outputs.param2 }}</p>
           <p>Parameter 3: ${{ needs.second-stage.outputs.param3 }}</p>
           <p>Parameter 4: ${{ needs.second-stage.outputs.param4 }}</p>
           <p>Parameter 5: ${{ needs.second-stage.outputs.param5 }}</p>
-          <p><a href="./history/${{ github.run_number }}.html">View this run's history</a></p>
-          <p><a href="./history/index.html">View all history</a></p>
+          <p><a href="../index.html">Back to Latest</a></p>
           </body></html>
           EOF
 
-          # History entry
-          cat <<EOF > public/history/${{ github.run_number }}.html
-          <html><body>
-          <h1>Pipeline Parameters Report (Run #${{ github.run_number }})</h1>
+          # Create "latest" HTML (overwrites every run)
+          cat > public/index.html <<EOF
+          <html><body><h1>Latest Pipeline Parameters</h1>
           <p>Parameter 1: ${{ needs.second-stage.outputs.param1 }}</p>
           <p>Parameter 2: ${{ needs.second-stage.outputs.param2 }}</p>
           <p>Parameter 3: ${{ needs.second-stage.outputs.param3 }}</p>
           <p>Parameter 4: ${{ needs.second-stage.outputs.param4 }}</p>
           <p>Parameter 5: ${{ needs.second-stage.outputs.param5 }}</p>
-          <p><a href="../index.html">Back to latest</a></p>
+          <p><a href="history/">View History</a></p>
           </body></html>
           EOF
 
-          # Rebuild history index
-          {
-            echo "<html><body><h1>All History</h1><ul>"
-            for file in $(ls public/history/*.html | sort -V); do
-              fname=$(basename "$file")
-              if [ "$fname" != "index.html" ]; then
-                echo "<li><a href=\"$fname\">Run #${fname%.html}</a></li>"
-              fi
-            done
-            echo "</ul><p><a href=\"../index.html\">Back to latest</a></p></body></html>"
-          } > public/history/index.html
+          # Update history index
+          HISTORY_INDEX="public/history/index.html"
+          mkdir -p public/history
+          if [ ! -f "$HISTORY_INDEX" ]; then
+            echo "<html><body><h1>Pipeline Run History</h1><ul>" > "$HISTORY_INDEX"
+          fi
+          sed -i '$d' "$HISTORY_INDEX" || true
+          echo "<li><a href=\"${RUN_ID}.html\">Run #${RUN_ID}</a></li>" >> "$HISTORY_INDEX"
+          echo "</ul></body></html>" >> "$HISTORY_INDEX"
 
       - name: Publish HTML to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
@@ -142,13 +117,12 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./public
           publish_branch: gh-pages
-          keep_files: true
 
       - name: Show Report URLs
         run: |
-          echo "Live report URL:"
-          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/?nocache=${{ github.run_id }}"
-          echo "History for this run:"
+          echo "Latest report:"
+          echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/"
+          echo "This run's history entry:"
           echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/history/${{ github.run_number }}.html"
-          echo "History Index:"
+          echo "History index:"
           echo "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/history/"
